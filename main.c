@@ -8,27 +8,27 @@
 			Mahmoud
  */ 
 /**************** Included files ***********************/
-#include "LCD.h"
-#include "KeyPad.h"
-#include "EEPROM.h"
-#define F_CPU 8000000
-#include <util/delay.h>
-#include <avr/interrupt.h>
+#include "LCD.h" // include the LCD driver
+#include "KeyPad.h" // include the key pad driver
+#include "EEPROM.h" // include EEPROM driver
+#define F_CPU 8000000 // define the frequency of the oscillator for delay_ms function
+#include <util/delay.h> // include this library for using delay_ms function
+#include <avr/interrupt.h> // include this library for using ISR for INT0,INT1
 
-#define student_num   5
-#define name_len     10
+#define student_num   5 // maximum number of the students
+#define name_len     10 // maximum number for the name length of the data set
 #define EEPROM_ID(User_ID)   ((User_ID*4)-400) // this a linear relation between user ID and EEPROM ID as USER ID [100-354] 
 #define EEPROM_Pass(User_ID) ((User_ID*4)-398) // this a linear relation between user ID and EEPROM ID that contain password
-#define Motor_Port  DIO_PORTD
-#define Motor_Pin   DIO_PIN1
-#define Motor_ON       1
-#define Motor_OFF      0
-#define Buzzer_Port  DIO_PORTD
-#define Buzzer_Pin   DIO_PIN5
-#define Buzzer_ON      1
-#define Buzzer_OFF     0
+#define Motor_Port  DIO_PORTD // port of the motor that is defined in DIO.h
+#define Motor_Pin   DIO_PIN1 // pin of the motor that is defined in DIO.h
+#define Motor_ON       1   // this macro that will pass in Motor_Trigger to turn the motor on
+#define Motor_OFF      0   // this macro that will pass in Motor_Trigger to turn the motor off
+#define Buzzer_Port  DIO_PORTD // port of the buzzer that is defined in DIO.h
+#define Buzzer_Pin   DIO_PIN5  // pin of the buzzer that is defined in DIO.h
+#define Buzzer_ON      1 // this macro that will pass in Buzzer_Trigger to turn the motor on
+#define Buzzer_OFF     0 // this macro that will pass in Buzzer_Trigger to turn the motor off
 
-/********************************************************/
+/********************** data type as struct *******************************/
 typedef struct
 {
 	uint8 name[name_len];
@@ -37,56 +37,46 @@ typedef struct
 }student;
 
 
-/**************** Prototypes ******************/
-void  System_Init(void);
-uint16 Key_Pad_enter(uint16*);
-int charArrayToInt(uint16 *arr);
-uint8 Check_ID(uint16);
-uint8 Check_Pass(uint16 , uint16 );
-void  Change_Pass(uint16 , uint16 );
-void  Admin_Func(void);
-void  Student_Func(void);
-void  Motor_Trigger(uint8);
-void  Buzzer_Trigger(uint8);
-/*****************  Data init ******************/
+/************************* Prototypes ********************************/
+void  System_Init(void); // system initialization for LCD, keypad, ext_interrupt, motor and buzzer
+uint16 Key_Pad_enter(uint16*); //this function takes an array as a buffer and store in it the entered characters from keypad and return it as integer
+int charArrayToInt(uint16 *arr);//this function called in kay_pad_enter to convert the array of characters to integer 
+uint8 Check_ID(uint16); // this function check if the entered ID is stored in eeprom and return with 1 if true or 0 if false
+uint8 Check_Pass(uint16 , uint16 ); //this function takes the id and the password and checked if this id has the same password and return 1 if true or 0 if false
+void  Change_Pass(uint16 , uint16 );//this function takes the id and the the new password to change its value in eeprom
+void  Admin_Func(void); // this function for the professor and will be called in INT0 ISR
+void  Student_Func(void);// this function for the student for changing his password and will be called in INT1 ISR
+void  Motor_Trigger(uint8); //this function trigger the motor status to open and close the door
+void  Buzzer_Trigger(uint8); // this function trigger the buzzer status 
+
+/*****************  Data set initialization ******************/
 student Data[student_num]={{"Prof",111,203},
 {"Ahmed",126,129},
 {"Amr",128,325},
 {"Adel",130,426},
 {"Omar",132,79}};
-	
-uint8 key_pad_case = 0; // this for hiding the pass code to detect the case of key pad
-/******************** main function **********************/
-ISR(INT0_vect)
+uint8 key_pad_case = 0; // this for hiding the pass code to detect the case of key pad as when it will be 1 write * in pc and if 0 write the normal character that is entered in keypad
+
+/******************** ISR **********************/
+ISR(INT0_vect) // interrupt INT0 service routine 
 {
 	Admin_Func();
-
 }
 
-ISR(INT1_vect)
+ISR(INT1_vect)// interrupt INT1 service routine 
 {
 	Student_Func();
-
 }
 
-
+/******************** main function **********************/
 int main(void)
 {
-	uint8 keypad_arr[3];
-	uint16 KeyPad_Val_ID;
-	uint16 KeyPad_Val_PC;
-	uint8 enter_val=0;
+	uint8 keypad_arr[3];//this array will store the data that entered from the keypad
+	uint16 KeyPad_Val_ID;//this variable will store the data of ID that comes from the keypad
+	uint16 KeyPad_Val_PC;//this variable will store the data of PC that comes from the keypad
+	uint8 enter_val=0; // this variable will store the value of * when the user enter it in the beginning of the while(1)
     System_Init();
-	
-	/*for (uint16 i=0x00;i<=0xFF;i=i+2) //this step is to check if the EEPROM data
-	{
-		LCD_WriteInteger(EEPROM_read(i));
-		LCD_GoTo(1,0);
-		LCD_WriteInteger(i);
-		_delay_ms(1000);
-		LCD_Clear();
-		LCD_GoTo(0,0);
-	}*/
+
 	while(1)
 	{
 		LCD_Clear();
@@ -106,7 +96,7 @@ int main(void)
 			{
 				LCD_Clear();
 				LCD_WriteString("wrong ID");
-				Buzzer_Trigger(Buzzer_ON);
+				Buzzer_Trigger(Buzzer_ON); // two peeps
 				_delay_ms(1000);
 				Buzzer_Trigger(Buzzer_OFF);
 				_delay_ms(1000);
@@ -120,13 +110,13 @@ int main(void)
 				LCD_Clear();
 				LCD_WriteString("enter PC");
 				LCD_GoTo(1,0);
-				key_pad_case=1;
+				key_pad_case=1; // crypt the following data the entered using * as it is the PC
 				KeyPad_Val_PC=Key_Pad_enter(&keypad_arr);
 				
 				if(Check_Pass(KeyPad_Val_PC, KeyPad_Val_ID) == 1)
 				{
 					LCD_Clear();
-					key_pad_case=0;
+					key_pad_case=0;// show the following data on LCD as it is the ID
 					for(uint8 i=0 ; i<=4 ; i++)
 					{
 						if (Data[i].ID == KeyPad_Val_ID )
@@ -148,59 +138,53 @@ int main(void)
 				{
 					LCD_Clear();
 					LCD_WriteString("wrong PC");
-					Buzzer_Trigger(Buzzer_ON);
+					Buzzer_Trigger(Buzzer_ON); // one peep
 					_delay_ms(1000);
 					Buzzer_Trigger(Buzzer_OFF);
 					LCD_Clear();
 					enter_val=0;
-					
-			
 				}
-			}
-			
+			}		
 		}
-	}
-	
-	
+	}	
 }
 /********************** functions implimintations *************************/
 void System_Init(void)
 {
 	uint8 Check_Var=1;
-	LCD_Init();
-	KeyPad_Init();
+	LCD_Init(); //initialize LCD
+	KeyPad_Init();//initialize Keypad
 	DIO_SetPinDir(Motor_Port,Motor_Pin,DIO_PIN_OUTPUT); /* set the motor pin as output*/
 	DIO_SetPinDir(Buzzer_Port,Buzzer_Pin,DIO_PIN_OUTPUT);/*set the buzzer bin as output*/
-	DIO_WritePin(Motor_Port,Motor_Pin,DIO_PIN_LOW);
-	DIO_WritePin(Buzzer_Port,Buzzer_Pin,DIO_PIN_LOW);
+	DIO_WritePin(Motor_Port,Motor_Pin,DIO_PIN_LOW);//set this pin low as initialized
+	DIO_WritePin(Buzzer_Port,Buzzer_Pin,DIO_PIN_LOW);//set this pin low as initialized
 	
+	/*initialize the external interrupt0 and external interrupt1*/
 	DIO_SetPinDir(DIO_PORTD,DIO_PIN2,DIO_PIN_INPUT);
-	DIO_WritePin(DIO_PORTD,DIO_PIN2,DIO_PIN_HIGH);
+	DIO_WritePin(DIO_PORTD,DIO_PIN2,DIO_PIN_HIGH);//enable pull up resistor 
 	DIO_SetPinDir(DIO_PORTD,DIO_PIN3,DIO_PIN_INPUT);
-	DIO_WritePin(DIO_PORTD,DIO_PIN3,DIO_PIN_HIGH);
-	MCUCR=0x0B;
-	GICR=0xC0;
-	SET_BIT(SREG,7);
-	
-	//External_INT0_Set_CallBack(&Admin_Func);/* call back function for the interrupt service routine of INT0*/ 
-	//External_INT1_Set_CallBack(Student_Func);/* call back function for the interrupt service routine of INT1*/ 
+	DIO_WritePin(DIO_PORTD,DIO_PIN3,DIO_PIN_HIGH);//enable pull up resistor
+	MCUCR=0x0B;// set modes of INT0 as rising edge and INT1 as falling edge
+	GICR=0xC0; //enable INT0 and INT1
+	SET_BIT(SREG,7);//global interrupt enable
+
 	/*************** Store pass in EEPROM **************/
-	for (uint16 i=0x00;i<=0xFF;i++) //this step is to check if the EEPROM is empty or not
+	for (uint16 i=0x00;i<=0xFF;i++) //this step is to check if the EEPROM is empty or not 
 	{
 		if(EEPROM_read(i) != 0xFF)
 			Check_Var=0;
 	}
-	if(Check_Var==1)/************************************/
+	if(Check_Var==1)/**************** if the eeprm is empty enter in it *************/
 	{
 		LCD_WriteString("Initializing...");
 		for(uint8 i=0 ; i<student_num ; i++)
 		{
-			EEPROM_write(EEPROM_ID(Data[i].ID) , Data[i].ID);
-			EEPROM_write(EEPROM_Pass(Data[i].ID) , Data[i].Pass);
+			EEPROM_write(EEPROM_ID(Data[i].ID) , Data[i].ID); //write the ID of the students and professor
+			EEPROM_write(EEPROM_Pass(Data[i].ID) , Data[i].Pass);//write the PC of the students and professor
 		}
 		LCD_Clear();
 	}
-	else if (Check_Var==0)
+	else if (Check_Var==0) // if the eeprom is initialized and and has any section its value is not 0xFF
 		LCD_WriteString("Ready");
 		_delay_ms(1000);
 		LCD_Clear();
@@ -214,11 +198,11 @@ uint16 Key_Pad_enter(uint16* ptr)
 		 while(1)
 		 {
 			 value=KeyPad_GetValue();
-			if(value)   //this loop is for use just on push for the putton of the keypad
+			if(value)   //this loop is for use just on push for the button of the keypad
 				 {
 					 if (counter < 2)            //checking if the counter is smaller than 3 and rising its value by one
 				 {
-					 switch(key_pad_case) // this for hiding the pass code of the user
+					 switch(key_pad_case) // this for hiding the pass code of the user as it checks on the global variable key_pad_case
 					 {
 						 case 0:
 						LCD_WriteChar(value);
@@ -228,15 +212,15 @@ uint16 Key_Pad_enter(uint16* ptr)
 						break; 
 					 }
 					
-					 ptr[counter]=value-'0';
+					 ptr[counter]=value-'0';//this for convert from ASCI to integer
 					 counter++;
 					 _delay_ms(250);
 				 }
 				 else if (counter == 2)   //checking if the counter is equal to 3 and getting its value to zero
 				 {
-					 ptr[counter]=value-'0';
+					 ptr[counter]=value-'0'; //this for convert from ASCI to integer
 					 counter=0;
-					 switch(key_pad_case) // this for hiding the pass code of the user
+					 switch(key_pad_case) // this for hiding the pass code of the user as it checks on the global variable key_pad_case
 					 {
 						  case 0:
 						LCD_WriteChar(value);
@@ -250,8 +234,7 @@ uint16 Key_Pad_enter(uint16* ptr)
 					 value=charArrayToInt(ptr);
 					 return value;
 					 break;
-				 }
-				 
+				 } 
 			 }
 		 }
 }
@@ -317,10 +300,12 @@ void  Admin_Func(void)
 	LCD_WriteString("Welcome Sir");
 	_delay_ms(1000);
 	LCD_Clear();
+	
 	LCD_WriteString("Enter Admin ID");
 	KeyPad_Val_ID=0;
 	KeyPad_Val_PC=0;
 	LCD_GoTo(1,0);
+	
 	KeyPad_Val_ID=Key_Pad_enter(&keypad_arr);
 	key_pad_case=1;
 	if(KeyPad_Val_ID == Data[0].ID)
@@ -330,6 +315,7 @@ void  Admin_Func(void)
 		LCD_GoTo(1,0);
 		KeyPad_Val_PC=Key_Pad_enter(&keypad_arr);
 		key_pad_case=0;
+		
 		if(Check_Pass(KeyPad_Val_PC,KeyPad_Val_ID))
 		{
 			LCD_Clear();
